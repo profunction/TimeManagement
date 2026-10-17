@@ -17,8 +17,9 @@
 > - **Microsoft Intune**（设备合规策略 + 应用使用报告，走 MDM 体系，员工入职协议里天然覆盖）
 > - **ActivTrak / Teramind** 等专业员工监控产品（内置同意弹窗、可配置的数据最小化、仅统计模式）
 >
-> 下面这套基于 ActivityWatch 的方案，适合**已经在用 ActivityWatch 做个人时间追踪、想要一个
-> 轻量级、自己可控数据流向的统计层**的场景，不是要替代上述产品。
+> 下面这套方案直接用 Windows 自带的 API 读前台窗口，不依赖任何外部服务或第三方 App，
+> 打包出来的 exe 员工双击就能用，适合**想要一个轻量级、自己可控数据流向的统计层**的场景，
+> 不是要替代上述产品。
 
 ---
 
@@ -41,17 +42,14 @@
 ## 2. 环境准备
 
 ```bash
-git clone https://github.com/ActivityWatch/aw-client-python.git   # 仅供参考/可编辑安装，见下
 cd corp_worktime_agent
 python3 -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-同上个项目一样，`aw-client-python` 是库，正常用 `pip install aw-client` 即可，克隆仓库只在你
-需要改库本身逻辑时才有必要。
-
-确保本机 ActivityWatch 桌面端已启动（`curl http://localhost:5600/api/0/info` 能返回版本号）。
+**不需要安装或启动任何外部服务**——前台窗口数据直接通过 Windows API 读取，员工机器上除了这个
+exe 本身，不需要再装别的东西。
 
 ---
 

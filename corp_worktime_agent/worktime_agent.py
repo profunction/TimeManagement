@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""企业工时统计 Agent（合规透明版）——基于本机 ActivityWatch 数据的分类计时工具。
+"""企业工时统计 Agent（合规透明版）——直接读 Windows 前台窗口的分类计时工具。
 
 四条硬约束（设计时的边界，不是营销话术）：
 1. 没有同意记录就不运行、不采集任何数据。
@@ -28,10 +28,16 @@ from typing import Optional
 
 import requests
 
-try:
-    from aw_client import ActivityWatchClient
-except ImportError:
-    ActivityWatchClient = None
+IS_WINDOWS = sys.platform == "win32"
+
+win32gui = win32process = psutil = None
+if IS_WINDOWS:
+    try:
+        import win32gui  # noqa: F811
+        import win32process  # noqa: F811
+        import psutil  # noqa: F811
+    except ImportError:
+        pass  # 没装 pywin32/psutil 时，前台窗口检测会在 ForegroundWindowGateway 初始化时报错
 
 try:
     import pystray
@@ -187,7 +193,7 @@ def ensure_consent(config: AgentConfig) -> bool:
 
 
 # --------------------------------------------------------------------------
-# ActivityWatch 网关
+# 前台窗口网关：直接用 Windows API 读当前窗口，不依赖任何外部服务/App
 # --------------------------------------------------------------------------
 
 @dataclass
@@ -196,47 +202,33 @@ class WindowSnapshot:
     title: str
 
 
-class ActivityWatchGateway:
-    def __init__(self, client_name: str = "corp-worktime-agent"):
-        if ActivityWatchClient is None:
-            raise RuntimeError("aw-client 未安装，请先运行: pip install aw-client")
-        self.client = ActivityWatchClient(client_name)
-        self._window_bucket_id: Optional[str] = None
-        self._ensure_connected()
+class ForegroundWindowGateway:
+    """用 GetForegroundWindow 系列 Win32 API 读当前前台窗口，零外部依赖、零网络请求。
+    和"员工看到的=上报的"那条约束一样重要的一点：这里也不额外采集任何 Windows 之外的数据，
+    只拿"当前窗口标题+进程名"这一项。"""
 
-    def _ensure_connected(self) -> None:
-        try:
-            info = self.client.get_info()
-        except Exception as exc:  # noqa: BLE001
-            raise RuntimeError(
-                "无法连接本地 ActivityWatch 服务 (http://localhost:5600)，"
-                f"请确认桌面端已启动。原始错误: {exc!r}"
-            ) from exc
-        logger.info("已连接 ActivityWatch 服务端，版本: %s", info.get("version", "unknown"))
-        self._window_bucket_id = self._find_window_bucket()
-
-    def _find_window_bucket(self) -> Optional[str]:
-        for bucket_id, bucket in self.client.get_buckets().items():
-            if bucket.get("type") == "currentwindow":
-                return bucket_id
-        logger.warning("未找到 aw-watcher-window 对应的桶。")
-        return None
+    def __init__(self):
+        if not IS_WINDOWS or win32gui is None:
+            raise RuntimeError("前台窗口检测仅支持 Windows，且需要 pywin32（打包时已包含）。")
+        logger.info("使用 Windows 前台窗口 API 读取当前窗口，无需任何外部服务。")
 
     def current_window(self) -> Optional[WindowSnapshot]:
-        if self._window_bucket_id is None:
-            self._window_bucket_id = self._find_window_bucket()
-            if self._window_bucket_id is None:
-                return None
         try:
-            events = self.client.get_events(self._window_bucket_id, limit=1)
+            hwnd = win32gui.GetForegroundWindow()
+            if not hwnd:
+                return None
+            title = win32gui.GetWindowText(hwnd)
+            app = ""
+            try:
+                _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                if psutil is not None:
+                    app = psutil.Process(pid).name()
+            except Exception:
+                pass
+            return WindowSnapshot(app=app, title=title)
         except Exception:
-            logger.exception("查询当前窗口事件失败")
+            logger.exception("读取前台窗口失败")
             return None
-        if not events:
-            return None
-        event = events[0]
-        data = event.data if hasattr(event, "data") else event.get("data", {})
-        return WindowSnapshot(app=data.get("app", ""), title=data.get("title", ""))
 
 
 # --------------------------------------------------------------------------
@@ -409,7 +401,7 @@ class TrayUI:
 class WorktimeAgent:
     def __init__(self, config: AgentConfig):
         self.config = config
-        self.gateway = ActivityWatchGateway()
+        self.gateway = ForegroundWindowGateway()
         self.stats = DailyStatsStore()
         self.reporter = Reporter(config, self.stats)
         self.tray = TrayUI(config, self.stats, self.reporter, on_exit=self._handle_user_exit)

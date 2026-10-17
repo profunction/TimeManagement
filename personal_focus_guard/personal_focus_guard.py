@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""个人专注控制器——基于本地 ActivityWatch 数据的自我管理工具。
+"""个人专注控制器——直接读 Windows 前台窗口的自我管理工具。
 
 这是你对自己电脑施加的自律工具，不是监控/管控他人的软件：
-- 所有数据只留在本机（直接读本地 ActivityWatch 服务 http://localhost:5600），不上报任何第三方。
+- 所有数据只留在本机（用 Windows API 直接读当前前台窗口，不依赖任何外部服务/第三方 App，
+  不上报任何第三方）。
 - "强制最小化窗口 + 反思弹窗" 只是行为提示，不对抗你本人：你随时可以在任务管理器里结束这个
   Python 进程，这是自我约束工具应有的边界，不是防护墙。
 
@@ -20,11 +21,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, time as dt_time
 from pathlib import Path
 from typing import Optional
-
-try:
-    from aw_client import ActivityWatchClient
-except ImportError:
-    ActivityWatchClient = None  # 延迟到真正需要时再报错，方便只跑 --help / 测配置
 
 try:
     from plyer import notification as plyer_notification
@@ -135,7 +131,7 @@ class GuardConfig:
 
 
 # --------------------------------------------------------------------------
-# ActivityWatch 网关：只读当前前台窗口
+# 前台窗口网关：直接用 Windows API 读当前窗口，不依赖任何外部服务/App
 # --------------------------------------------------------------------------
 
 @dataclass
@@ -144,51 +140,33 @@ class WindowSnapshot:
     title: str
 
 
-class ActivityWatchGateway:
-    """封装 aw-client，拉取本机 ActivityWatch 记录的当前前台窗口。"""
+class ForegroundWindowGateway:
+    """用 GetForegroundWindow 系列 Win32 API 读当前前台窗口，零外部依赖、零网络请求。
+    只要打包出来的 exe 本身能跑（自带 pywin32/psutil），双击就能用，不需要用户另外装/开
+    任何别的软件。"""
 
-    def __init__(self, client_name: str = "personal-focus-guard"):
-        if ActivityWatchClient is None:
-            raise RuntimeError("aw-client 未安装，请先运行: pip install aw-client")
-        self.client = ActivityWatchClient(client_name)
-        self._window_bucket_id: Optional[str] = None
-        self._ensure_connected()
-
-    def _ensure_connected(self) -> None:
-        try:
-            info = self.client.get_info()
-        except Exception as exc:  # noqa: BLE001 - 需要给出人话提示而不是裸异常
-            raise RuntimeError(
-                "无法连接本地 ActivityWatch 服务 (http://localhost:5600)。"
-                "请确认 ActivityWatch 桌面端已启动，且 aw-watcher-window 监听器已启用。"
-                f"原始错误: {exc!r}"
-            ) from exc
-        logger.info("已连接 ActivityWatch 服务端，版本: %s", info.get("version", "unknown"))
-        self._window_bucket_id = self._find_window_bucket()
-
-    def _find_window_bucket(self) -> Optional[str]:
-        buckets = self.client.get_buckets()
-        for bucket_id, bucket in buckets.items():
-            if bucket.get("type") == "currentwindow":
-                return bucket_id
-        logger.warning("未找到 aw-watcher-window 对应的桶，当前窗口数据可能暂不可用。")
-        return None
+    def __init__(self):
+        if not IS_WINDOWS or win32gui is None:
+            raise RuntimeError("前台窗口检测仅支持 Windows，且需要 pywin32（打包时已包含）。")
+        logger.info("使用 Windows 前台窗口 API 读取当前窗口，无需任何外部服务。")
 
     def current_window(self) -> Optional[WindowSnapshot]:
-        if self._window_bucket_id is None:
-            self._window_bucket_id = self._find_window_bucket()
-            if self._window_bucket_id is None:
-                return None
         try:
-            events = self.client.get_events(self._window_bucket_id, limit=1)
+            hwnd = win32gui.GetForegroundWindow()
+            if not hwnd:
+                return None
+            title = win32gui.GetWindowText(hwnd)
+            app = ""
+            try:
+                _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                if psutil is not None:
+                    app = psutil.Process(pid).name()
+            except Exception:
+                pass  # 拿不到进程名（比如系统窗口/权限问题）时，仍然用标题继续判断
+            return WindowSnapshot(app=app, title=title)
         except Exception:
-            logger.exception("查询当前窗口事件失败")
+            logger.exception("读取前台窗口失败")
             return None
-        if not events:
-            return None
-        event = events[0]
-        data = event.data if hasattr(event, "data") else event.get("data", {})
-        return WindowSnapshot(app=data.get("app", ""), title=data.get("title", ""))
 
 
 # --------------------------------------------------------------------------
@@ -329,10 +307,10 @@ class InterventionController:
 # --------------------------------------------------------------------------
 
 class PersonalFocusGuard:
-    def __init__(self, config_path: Path, gateway: Optional[ActivityWatchGateway] = None):
+    def __init__(self, config_path: Path, gateway: Optional[ForegroundWindowGateway] = None):
         self.config_path = config_path
         self.config = GuardConfig.load(config_path)
-        self.gateway = gateway or ActivityWatchGateway()
+        self.gateway = gateway or ForegroundWindowGateway()
         self.intervention = InterventionController(self.config.notification_app_name)
         self.period_states: dict[str, PeriodState] = {}
         self.focus_tracker = FocusRewardTracker(self.config.reward)
@@ -432,7 +410,7 @@ class PersonalFocusGuard:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="个人专注控制器（基于 ActivityWatch）")
+    parser = argparse.ArgumentParser(description="个人专注控制器（基于 Windows 前台窗口 API）")
     parser.add_argument(
         "--config", type=Path, default=_app_dir() / "config.json",
         help="配置文件路径，默认同目录下的 config.json",
