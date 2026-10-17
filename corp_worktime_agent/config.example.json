@@ -1,0 +1,19 @@
+{
+  "employee_id": "u10234",
+  "poll_interval_seconds": 5,
+  "report_interval_minutes": 30,
+  "report_webhook_url": "",
+  "consent_notice_path": "consent_notice.md",
+  "categories": {
+    "work_keywords": [
+      "code", "pycharm", "intellij", "vim", "terminal", "iterm",
+      "word", "excel", "powerpoint", "notion", "obsidian", "jira", "confluence"
+    ],
+    "break_keywords": [
+      "bilibili", "youtube", "douyin", "tiktok", "netflix", "twitch"
+    ],
+    "personal_keywords": [
+      "weibo", "instagram", "wechat", "telegram", "whatsapp"
+    ]
+  }
+}
