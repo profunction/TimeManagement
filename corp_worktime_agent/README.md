@@ -108,7 +108,31 @@ build_windows_exe.bat
 
 ---
 
-## 6. 数据最小化说明
+## 6. 打包成一键安装程序（可选）
+
+用 [Inno Setup](https://jrsoftware.org/isdl.php)（免费）把 `dist\CorpWorktimeAgent\` 文件夹
+打成单文件安装包，员工双击安装，不需要管理员权限，有开始菜单项和可选桌面图标。
+
+> 说明：这里用 Inno Setup 产出 `Setup.exe` 而不是严格意义上的 `.msi`（后者要用更繁琐的
+> WiX Toolset）——装出来的用户体验一致（向导安装、开始菜单、卸载入口），只是文件后缀不同，
+> 这是大多数 Windows 桌面软件实际采用的方案。
+
+**步骤**：
+
+1. 先跑完第 5 步的 `build_windows_exe.bat`，确认 exe 已生成。
+2. 安装 Inno Setup：https://jrsoftware.org/isdl.php
+3. 运行 `build_installer.bat`，产出 `installer_output\CorpWorktimeAgent-Setup.exe`。
+
+**重要**：安装包里的 `consent_notice.md` 和 `config.json` 只在**第一次安装**时从模板生成，
+后续用新版安装包覆盖升级时不会被覆盖——所以上线前必须先把 `dist\CorpWorktimeAgent\
+consent_notice.md`（打包前的源文件，不是装好之后的那份）换成法务/HR 审核过的正式文本，
+再跑 `build_installer.bat`，这样打出来的安装包首次安装时员工看到的才是正式版本。
+
+同上，这部分我没法在 Linux 云端实际编译验证，`ISCC.exe` 如果报语法错误，把报错发我。
+
+---
+
+## 7. 数据最小化说明
 
 上报给 `report_webhook_url` 的 JSON，字段和"查看我的记录"里员工看到的完全一致：
 

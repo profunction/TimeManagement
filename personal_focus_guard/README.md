@@ -72,7 +72,39 @@ PyInstaller 打包，产出 `dist\PersonalFocusGuard\PersonalFocusGuard.exe`。�
 
 ---
 
-## 4. 配置文件字段说明（`config.example.json`）
+## 4. 打包成一键安装程序（可选，更像"正式 app"）
+
+上一步产出的是"一个文件夹，解压/拷贝后双击里面的 exe"，能用但不太像正式软件。这一步用
+[Inno Setup](https://jrsoftware.org/isdl.php)（免费）把它做成**单文件安装包**：双击安装、
+自动建开始菜单项、可选桌面图标、在"添加或删除程序"里能正常卸载。
+
+> 说明：严格意义上的 `.msi` 要用微软的 WiX Toolset（纯 XML 写安装脚本，上手成本高很多）。
+> Inno Setup 产出的是 `Setup.exe`，但用户体验跟 `.msi` 装出来的效果完全一样（向导式安装、
+> 开始菜单、卸载入口），而且是绝大多数 Windows 桌面软件实际在用的方案，所以这里选了它。
+
+**步骤**：
+
+1. 先按第 3 步跑完 `build_windows_exe.bat`，确认 `dist\PersonalFocusGuard\PersonalFocusGuard.exe`
+   已经生成。
+2. 安装 Inno Setup（一路下一步就行）：https://jrsoftware.org/isdl.php
+3. 运行：
+   ```
+   build_installer.bat
+   ```
+   会自动找到 Inno Setup 的编译器，读取 `installer.iss`，产出
+   `installer_output\PersonalFocusGuard-Setup.exe`。
+
+这个 `Setup.exe` 就是最终可以发给别人用的东西：装在 `%LOCALAPPDATA%` 下，**不需要管理员
+权限**，装完有开始菜单项，装的时候可以勾选"创建桌面快捷方式"。升级重装时不会覆盖用户已有的
+`config.json`（只在第一次安装时从模板生成）。
+
+**这部分我没法在这边（Linux 云端）实际跑一遍验证**——Inno Setup 是 Windows 专属工具，`installer.iss`
+的语法我是照着 Inno Setup 文档写的，但没有真机编译测试过；如果 `build_installer.bat` 跑的时候
+`ISCC.exe` 报语法错误，把报错贴给我，我根据具体报错调整 `installer.iss`。
+
+---
+
+## 5. 配置文件字段说明（`config.example.json`）
 
 | 字段 | 说明 |
 |---|---|
