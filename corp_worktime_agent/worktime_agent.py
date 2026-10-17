@@ -40,7 +40,23 @@ except ImportError:
     pystray = None
     Image = ImageDraw = None
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+def _app_dir() -> Path:
+    """打包成 PyInstaller exe 后 __file__ 指向临时解压目录，用 sys.executable 所在目录才对。"""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent
+    return Path(__file__).parent
+
+
+_LOG_DIR = Path.home() / ".timemanagement" / "logs"
+_LOG_DIR.mkdir(parents=True, exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(_LOG_DIR / "worktime_agent.log", encoding="utf-8"),
+    ],
+)
 logger = logging.getLogger("worktime_agent")
 
 STATE_DIR = Path.home() / ".timemanagement" / "corp_worktime"
@@ -433,7 +449,7 @@ class WorktimeAgent:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="企业工时统计 Agent（合规透明版）")
-    parser.add_argument("--config", type=Path, default=Path(__file__).parent / "config.json")
+    parser.add_argument("--config", type=Path, default=_app_dir() / "config.json")
     args = parser.parse_args()
 
     if not args.config.exists():

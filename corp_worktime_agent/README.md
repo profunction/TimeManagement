@@ -88,7 +88,29 @@ python worktime_agent.py --config config.json
 
 ---
 
-## 5. 数据最小化说明
+## 5. 打包成 Windows .exe（免装 Python）
+
+```
+build_windows_exe.bat
+```
+
+在 Windows 上运行这个脚本，自动建虚拟环境、装依赖、调用 PyInstaller 打包，产出
+`dist\CorpWorktimeAgent\CorpWorktimeAgent.exe`。
+
+**注意事项**（和 `personal_focus_guard` 那份一致，额外多一条）：
+- 必须在 Windows 上跑，PyInstaller 不支持跨平台编译，这个 `.bat` 在开发环境（Linux 云端）里
+  没法验证，请在你自己的 Windows 机器上跑一遍。
+- Python 用 python.org 的完整版（带 tkinter），不要用 Microsoft Store 版。
+- SmartScreen/杀毒软件对未签名 exe 的"未知发布者"提示是正常现象，不代表程序有问题。
+- 打包产物是整个 `dist\CorpWorktimeAgent\` 文件夹，分发时要整体复制，不能只拷贝 exe。
+- **额外这一条是企业部署专属的**：批量分发给多台机器前，务必先把 `consent_notice.md`
+  换成法务/HR 审核过的正式文本，并把 `config.example.json` 里的 `employee_id`
+  按每台机器/每个员工单独生成（不要全公司共用一份配置，否则"查看我的记录"和上报数据
+  会对不上号）。
+
+---
+
+## 6. 数据最小化说明
 
 上报给 `report_webhook_url` 的 JSON，字段和"查看我的记录"里员工看到的完全一致：
 

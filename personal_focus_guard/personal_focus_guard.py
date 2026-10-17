@@ -43,7 +43,23 @@ if IS_WINDOWS:
     except ImportError:
         pass  # 没装 pywin32/psutil 时，强制最小化功能会被跳过并打日志提醒
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+def _app_dir() -> Path:
+    """打包成 PyInstaller exe 后 __file__ 指向临时解压目录，用 sys.executable 所在目录才对。"""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent
+    return Path(__file__).parent
+
+
+_LOG_DIR = Path.home() / ".timemanagement" / "logs"
+_LOG_DIR.mkdir(parents=True, exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler(_LOG_DIR / "personal_focus_guard.log", encoding="utf-8"),
+    ],
+)
 logger = logging.getLogger("personal_focus_guard")
 
 REFLECTION_COOLDOWN_SECONDS = 60  # 同一时段内，反思弹窗最短间隔，避免配额用尽后每轮都弹
@@ -418,7 +434,7 @@ class PersonalFocusGuard:
 def main() -> None:
     parser = argparse.ArgumentParser(description="个人专注控制器（基于 ActivityWatch）")
     parser.add_argument(
-        "--config", type=Path, default=Path(__file__).parent / "config.json",
+        "--config", type=Path, default=_app_dir() / "config.json",
         help="配置文件路径，默认同目录下的 config.json",
     )
     args = parser.parse_args()

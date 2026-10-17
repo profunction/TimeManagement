@@ -80,7 +80,30 @@ python personal_focus_guard.py --config config.json
 ```
 
 - 配置文件**热加载**：脚本每轮轮询都会重新读一次 `config.json`，改完保存立刻生效，不用重启。
-- 日志打印在终端，关键事件（警告、干预、奖励）都会打一行，方便你自己复盘当天状态。
+- 日志同时打印在终端 + 写入 `~/.timemanagement/logs/personal_focus_guard.log`，方便复盘当天状态。
+
+---
+
+## 3. 打包成 Windows .exe（免装 Python）
+
+```
+build_windows_exe.bat
+```
+
+双击或在 Windows 的 cmd/PowerShell 里运行这个脚本，会自动建虚拟环境、装依赖、调用
+PyInstaller 打包，产出 `dist\PersonalFocusGuard\PersonalFocusGuard.exe`。
+
+**注意事项**：
+- **必须在 Windows 上跑这个脚本**——PyInstaller 不支持跨平台编译，不能在 Linux/Mac 上生成
+  Windows exe，所以这个 `.bat` 没法在开发这份代码的云端环境里验证，请在你自己的 Windows 机器
+  上跑一遍。
+- Python 需要是从 [python.org](https://www.python.org/downloads/) 装的完整版，自带 tkinter；
+  Microsoft Store 版 Python 有时会缺 tkinter，打包/运行反思弹窗那部分会报错。
+- 首次运行打包出的 exe，如果 Windows SmartScreen / 杀毒软件弹"未知发布者"警告，这是
+  PyInstaller 打包的程序没有代码签名导致的常见提示，不是脚本本身有问题；点"仍要运行"即可，
+  如果需要消除这个提示，需要自行购买代码签名证书对 exe 签名。
+- 打包出来是整个 `dist\PersonalFocusGuard\` 文件夹（里面还有依赖的 dll），**不要只拷贝
+  exe 单个文件**，把整个文件夹一起复制/分发。
 
 ---
 
